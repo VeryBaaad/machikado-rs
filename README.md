@@ -113,3 +113,7 @@ The project was originally written using AI. If you have a cleanliness obsession
 | Since v0.0.x | Mostly AI-generated, with a small part done manually |
 | Since v0.1.x | Replace the AI parts with handmade ones as much as possible |
 | Since v1.x.x | Major overhaul, ditching the AI part |
+
+## License
+
+* [Apache 2.0 license](https://www.apache.org/licenses/LICENSE-2.0)
