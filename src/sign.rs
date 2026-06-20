@@ -69,7 +69,7 @@ pub fn sign_file_entries(
     let data = build_signing_data(entries);
     let signature = signing_key.sign(&data);
 
-    // 96 字节 = signature(64) || public_key(32)
+    // 96 bytes = signature(64) || public_key(32)
     let mut blob = Vec::with_capacity(96);
     blob.extend_from_slice(&signature.to_bytes());
     blob.extend_from_slice(&public_key);
@@ -92,7 +92,7 @@ pub fn verify_signed_blob(entries: &[FileEntry], signed_blob: &[u8]) -> Result<(
         return Err(SignError::InvalidBlob);
     }
 
-    // 前 64 字节 = 签名，后 32 字节 = 公钥
+    // First 64 bytes = signature, last 32 bytes = public key
     let signature_bytes: &[u8; 64] = signed_blob[..64]
         .try_into()
         .map_err(|_| SignError::InvalidBlob)?;
@@ -258,7 +258,7 @@ mod tests {
 
     fn load_entries(dir: &std::path::Path, ignore_names: &[&str]) -> Vec<FileEntry> {
         use crate::load_folder_files;
-        load_folder_files(dir, &[], ignore_names).unwrap()
+        load_folder_files(dir, &[], ignore_names, None).unwrap()
     }
 
     #[test]
