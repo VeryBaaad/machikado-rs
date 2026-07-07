@@ -32,7 +32,11 @@ impl FileMapping {
         }
     }
 
-    pub fn insert(&mut self, target_path: &str, source_path: &str) {
+    pub fn insert<T, S>(&mut self, target_path: T, source_path: S)
+    where
+        T: ToString,
+        S: ToString,
+    {
         self.map
             .insert(target_path.to_string(), source_path.to_string());
     }
@@ -74,13 +78,70 @@ impl From<Vec<(&str, &str)>> for FileMapping {
     }
 }
 
+impl From<Vec<(String, String)>> for FileMapping {
+    fn from(pairs: Vec<(String, String)>) -> Self {
+        let mut m = Self::new();
+        for (target, source) in pairs {
+            m.insert(target, source);
+        }
+        m
+    }
+}
+
 impl FromIterator<(String, String)> for FileMapping {
     fn from_iter<I: IntoIterator<Item = (String, String)>>(iter: I) -> Self {
         let mut m = Self::new();
         for (target, source) in iter {
-            m.insert(&target, &source);
+            m.insert(target, source);
         }
         m
+    }
+}
+
+impl<'a> FromIterator<(&'a str, &'a str)> for FileMapping {
+    fn from_iter<I: IntoIterator<Item = (&'a str, &'a str)>>(iter: I) -> Self {
+        let mut m = Self::new();
+        for (target, source) in iter {
+            m.insert(target, source);
+        }
+        m
+    }
+}
+
+impl IntoIterator for FileMapping {
+    type Item = (String, String);
+    type IntoIter = std::collections::btree_map::IntoIter<String, String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a FileMapping {
+    type Item = (&'a str, &'a str);
+    type IntoIter = std::iter::Map<
+        std::collections::btree_map::Iter<'a, String, String>,
+        fn((&'a String, &'a String)) -> (&'a str, &'a str),
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map.iter().map(|(k, v)| (k.as_str(), v.as_str()))
+    }
+}
+
+impl From<FileMapping> for Vec<(String, String)> {
+    fn from(mapping: FileMapping) -> Self {
+        mapping.map.into_iter().collect()
+    }
+}
+
+impl<'a> From<&'a FileMapping> for Vec<(&'a str, &'a str)> {
+    fn from(mapping: &'a FileMapping) -> Self {
+        mapping
+            .map
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect()
     }
 }
 
@@ -322,6 +383,50 @@ mod tests {
     fn test_mapping_from_empty_array() {
         let m = FileMapping::from([]);
         assert!(m.is_empty());
+    }
+
+    #[test]
+    fn test_mapping_into_vec() {
+        let mut m = FileMapping::new();
+        m.insert("a", "src/a");
+        m.insert("b", "src/b");
+
+        let vec: Vec<(String, String)> = m.clone().into();
+        assert_eq!(
+            vec,
+            vec![
+                ("a".to_string(), "src/a".to_string()),
+                ("b".to_string(), "src/b".to_string()),
+            ]
+        );
+
+        let vec_ref: Vec<(&str, &str)> = (&m).into();
+        assert_eq!(vec_ref, vec![("a", "src/a"), ("b", "src/b")]);
+    }
+
+    #[test]
+    fn test_mapping_into_iter() {
+        let mut m = FileMapping::new();
+        m.insert("a", "src/a");
+        m.insert("b", "src/b");
+
+        let collected: Vec<(String, String)> = m.into_iter().collect();
+        assert_eq!(
+            collected,
+            vec![
+                ("a".to_string(), "src/a".to_string()),
+                ("b".to_string(), "src/b".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_mapping_ref_iter() {
+        let mut m = FileMapping::new();
+        m.insert("a", "src/a");
+
+        let collected: Vec<(&str, &str)> = (&m).into_iter().collect();
+        assert_eq!(collected, vec![("a", "src/a")]);
     }
 
     #[test]
