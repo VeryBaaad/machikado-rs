@@ -79,17 +79,32 @@ Map source paths to signed paths — for when `customize.sh` moves files at inst
 ```rust
 use machikado_rs::FileMapping;
 
-// Arch-specific → generic
+// Single pair
 let mapping = FileMapping::from(("bin/zygiskd64", "bin/arm64-v8a/zygiskd"));
 
-// Backup → original (for verification after Magisk modifies files)
-let mapping = FileMapping::from(("module.prop", "module.prop.orig"));
-
-// Multiple pairs
+// Array of pairs
 let mapping = FileMapping::from([
     ("bin/zygiskd64", "bin/arm64-v8a/zygiskd"),
     ("bin/zygiskd32", "bin/armeabi-v7a/zygiskd"),
 ]);
+
+// From Vec<(&str, &str)> or Vec<(String, String)>
+let pairs: Vec<(&str, &str)> = vec![("a", "src/a")];
+let mapping = FileMapping::from(pairs);
+
+// From iterator
+let mapping: FileMapping = [("a", "src/a"), ("b", "src/b")]
+    .into_iter()
+    .collect();
+
+// Iteration
+for (target, source) in &mapping {
+    println!("{target} -> {source}");
+}
+
+// Convert back to Vec
+let vec: Vec<(String, String)> = mapping.into();
+let vec_ref: Vec<(&str, &str)> = (&mapping).into();
 
 let entries = load_folder_files(&dir, &[], &[], Some(&mapping))?;
 ```
