@@ -276,7 +276,7 @@ mod tests {
 
     fn load_entries(dir: &std::path::Path, ignore_names: &[&str]) -> Vec<FileEntry> {
         use crate::load_folder_files;
-        load_folder_files(dir, &[], ignore_names, None).unwrap()
+        load_folder_files(dir, &[], ignore_names, None, false).unwrap()
     }
 
     #[test]
@@ -720,7 +720,8 @@ mod tests {
         fs::write(dir.join("config.toml"), b"key = \"value\"\n").unwrap();
         fs::write(dir.join("webroot/index.html"), b"<html></html>\n").unwrap();
 
-        let entries_sign = load_folder_files(&dir, &[], &["customize.sh", "mazoku"], None).unwrap();
+        let entries_sign =
+            load_folder_files(&dir, &[], &["customize.sh", "mazoku"], None, false).unwrap();
         assert!(!entries_sign.is_empty());
         let machikado = sign_file_entries(&entries_sign, &member_kp.private_key).unwrap();
         let mazoku = sign_mazoku("test", &member_kp.public_key, &org_kp.private_key).unwrap();
@@ -739,7 +740,7 @@ mod tests {
 
         let mapping = FileMapping::from(("module.prop", "module.prop.orig"));
         let entries_verify =
-            load_folder_files(&dir, &[], &["machikado", "mazoku"], Some(&mapping)).unwrap();
+            load_folder_files(&dir, &[], &["machikado", "mazoku"], Some(&mapping), false).unwrap();
 
         assert_eq!(
             entries_verify.len(),
