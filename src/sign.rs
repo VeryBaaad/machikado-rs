@@ -720,8 +720,7 @@ mod tests {
         fs::write(dir.join("config.toml"), b"key = \"value\"\n").unwrap();
         fs::write(dir.join("webroot/index.html"), b"<html></html>\n").unwrap();
 
-        let entries_sign =
-            load_folder_files(&dir, &[], &["customize.sh", "mazoku"], None).unwrap();
+        let entries_sign = load_folder_files(&dir, &[], &["customize.sh", "mazoku"], None).unwrap();
         assert!(!entries_sign.is_empty());
         let machikado = sign_file_entries(&entries_sign, &member_kp.private_key).unwrap();
         let mazoku = sign_mazoku("test", &member_kp.public_key, &org_kp.private_key).unwrap();

@@ -353,8 +353,7 @@ mod tests {
         write_file(&dir, "skip_prefix/data.txt", b"d");
         write_file(&dir, "skip_exact.txt", b"e");
 
-        let entries =
-            load_folder_files(&dir, &["skip_prefix"], &["skip_exact.txt"], None).unwrap();
+        let entries = load_folder_files(&dir, &["skip_prefix"], &["skip_exact.txt"], None).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
         assert_eq!(paths, vec!["keep.txt"]);
     }
