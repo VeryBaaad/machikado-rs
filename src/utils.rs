@@ -182,30 +182,28 @@ impl<'a> From<&'a FileMapping> for Vec<(&'a str, Option<&'a str>)> {
 /// # Example
 ///
 /// ```ignore
-/// let entries = machikado_rs::load_folder_files(dir, &[], &["machikado", "mazoku"], None, false)?;
+/// let entries = machikado_rs::load_folder_files(dir, &[], &["machikado", "mazoku"], None)?;
 ///
-/// let mapping = FileMapping::from(("bin/zygiskd64", "bin/arm64-v8a/zygiskd"));
-/// let entries = machikado_rs::load_folder_files(dir, &[], &["machikado", "mazoku"], Some(&mapping), false)?;
+/// let mapping = FileMapping::from(("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd")));
+/// let entries = machikado_rs::load_folder_files(dir, &[], &["machikado", "mazoku"], Some(&mapping))?;
 /// ```
 pub fn load_folder_files(
     folder: &Path,
     ignore_prefixes: &[&str],
     ignore_names: &[&str],
     mapping: Option<&FileMapping>,
-    from_mapping: bool,
 ) -> std::io::Result<Vec<FileEntry>> {
     let mut entries = Vec::new();
 
     if let Some(m) = mapping {
-        if from_mapping {
-            for (target_path, source_path_opt) in &m.map {
-                let source_path = source_path_opt.as_deref().unwrap_or(target_path);
+        for (target_path, source_path_opt) in &m.map {
+            if let Some(source_path) = source_path_opt {
                 let full_source = folder.join(source_path);
                 let content = std::fs::read(&full_source).map_err(|e| {
                     std::io::Error::new(
                         e.kind(),
                         format!(
-                            "failed to read mapped source '{}' (-> target '{}'): {}",
+                            "failed to read mapped source '{}' (→ target '{}'): {}",
                             source_path, target_path, e
                         ),
                     )
@@ -214,27 +212,6 @@ pub fn load_folder_files(
                     relative_path: target_path.clone(),
                     content,
                 });
-            }
-            entries.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
-            return Ok(entries);
-        } else {
-            for (target_path, source_path_opt) in &m.map {
-                if let Some(source_path) = source_path_opt {
-                    let full_source = folder.join(source_path);
-                    let content = std::fs::read(&full_source).map_err(|e| {
-                        std::io::Error::new(
-                            e.kind(),
-                            format!(
-                                "failed to read mapped source '{}' (-> target '{}'): {}",
-                                source_path, target_path, e
-                            ),
-                        )
-                    })?;
-                    entries.push(FileEntry {
-                        relative_path: target_path.clone(),
-                        content,
-                    });
-                }
             }
         }
     }
@@ -281,6 +258,41 @@ pub fn load_folder_files(
     Ok(entries)
 }
 
+/// Load and sort all files in file mapping.
+///
+/// # Example
+///
+/// ```ignore
+/// let mapping = FileMapping::from(
+///     ("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd")),
+///     ("module.prop", None::<&str>),
+/// );
+/// let entries = machikado_rs::load_from_mapping(dir, &mapping)?;
+/// ```
+pub fn load_from_mapping(folder: &Path, mapping: &FileMapping) -> std::io::Result<Vec<FileEntry>> {
+    let mut entries = Vec::new();
+
+    for (target_path, source_path_opt) in &mapping.map {
+        let source_path = source_path_opt.as_deref().unwrap_or(target_path);
+        let full_source = folder.join(source_path);
+        let content = std::fs::read(&full_source).map_err(|e| {
+            std::io::Error::new(
+                e.kind(),
+                format!(
+                    "failed to read mapped source '{}' (-> target '{}'): {}",
+                    source_path, target_path, e
+                ),
+            )
+        })?;
+        entries.push(FileEntry {
+            relative_path: target_path.clone(),
+            content,
+        });
+    }
+    entries.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+    Ok(entries)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,7 +325,7 @@ mod tests {
         write_file(&dir, "skip/config.txt", b"skip");
         write_file(&dir, "skip/nested/data.bin", b"data");
 
-        let entries = load_folder_files(&dir, &["skip"], &[], None, false).unwrap();
+        let entries = load_folder_files(&dir, &["skip"], &[], None).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
         assert_eq!(paths, vec!["keep.txt"]);
     }
@@ -327,7 +339,7 @@ mod tests {
         write_file(&dir, "b.txt", b"b");
         write_file(&dir, "sub/c.txt", b"c");
 
-        let entries = load_folder_files(&dir, &[], &["b.txt"], None, false).unwrap();
+        let entries = load_folder_files(&dir, &[], &["b.txt"], None).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
         assert_eq!(paths, vec!["a.txt", "sub/c.txt"]);
     }
@@ -342,7 +354,7 @@ mod tests {
         write_file(&dir, "skip_exact.txt", b"e");
 
         let entries =
-            load_folder_files(&dir, &["skip_prefix"], &["skip_exact.txt"], None, false).unwrap();
+            load_folder_files(&dir, &["skip_prefix"], &["skip_exact.txt"], None).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
         assert_eq!(paths, vec!["keep.txt"]);
     }
@@ -357,7 +369,7 @@ mod tests {
         write_file(&dir, "b/1.txt", b"b1");
         write_file(&dir, "b/0.txt", b"b0");
 
-        let entries = load_folder_files(&dir, &[], &[], None, false).unwrap();
+        let entries = load_folder_files(&dir, &[], &[], None).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
         assert_eq!(paths, vec!["a.txt", "b/0.txt", "b/1.txt", "c.txt"]);
     }
@@ -376,7 +388,39 @@ mod tests {
         mapping.insert("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd"));
         mapping.insert("bin/zygiskd32", Some("bin/armeabi-v7a/zygiskd"));
 
-        let entries = load_folder_files(&dir, &[], &[], Some(&mapping), false).unwrap();
+        let entries = load_folder_files(&dir, &[], &[], Some(&mapping)).unwrap();
+        let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
+        let contents: Vec<&[u8]> = entries.iter().map(|e| e.content.as_slice()).collect();
+
+        assert_eq!(
+            paths,
+            vec![
+                "bin/zygiskd32",
+                "bin/zygiskd64",
+                "module.prop",
+                "post-fs-data.sh"
+            ]
+        );
+        assert_eq!(contents, vec![b"d32" as &[u8], b"d64", b"prop", b"post"]);
+    }
+
+    #[test]
+    fn test_load_from_mapping() {
+        let dir = temp_dir();
+        let _guard = Cleanup(Some(dir.clone()));
+
+        write_file(&dir, "bin/arm64-v8a/zygiskd", b"d64");
+        write_file(&dir, "bin/armeabi-v7a/zygiskd", b"d32");
+        write_file(&dir, "module.prop", b"prop");
+        write_file(&dir, "post-fs-data.sh", b"post");
+
+        let mut mapping = FileMapping::new();
+        mapping.insert("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd"));
+        mapping.insert("bin/zygiskd32", Some("bin/armeabi-v7a/zygiskd"));
+        mapping.insert("module.prop", None::<&str>);
+        mapping.insert("post-fs-data.sh", None::<&str>);
+
+        let entries = load_from_mapping(&dir, &mapping).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
         let contents: Vec<&[u8]> = entries.iter().map(|e| e.content.as_slice()).collect();
 
@@ -403,7 +447,7 @@ mod tests {
         let mut mapping = FileMapping::new();
         mapping.insert("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd"));
 
-        let entries = load_folder_files(&dir, &[], &[], Some(&mapping), false).unwrap();
+        let entries = load_folder_files(&dir, &[], &[], Some(&mapping)).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
 
         assert_eq!(paths, vec!["bin/zygiskd64", "module.prop"]);
@@ -495,7 +539,7 @@ mod tests {
 
         let mapping = FileMapping::from(("module.prop", "module.prop.orig"));
 
-        let entries = load_folder_files(&dir, &[], &[], Some(&mapping), false).unwrap();
+        let entries = load_folder_files(&dir, &[], &[], Some(&mapping)).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
         let contents: Vec<&[u8]> = entries.iter().map(|e| e.content.as_slice()).collect();
 
