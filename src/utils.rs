@@ -197,22 +197,21 @@ pub fn load_folder_files(
 
     if let Some(m) = mapping {
         for (target_path, source_path_opt) in &m.map {
-            if let Some(source_path) = source_path_opt {
-                let full_source = folder.join(source_path);
-                let content = std::fs::read(&full_source).map_err(|e| {
-                    std::io::Error::new(
-                        e.kind(),
-                        format!(
-                            "failed to read mapped source '{}' (→ target '{}'): {}",
-                            source_path, target_path, e
-                        ),
-                    )
-                })?;
-                entries.push(FileEntry {
-                    relative_path: target_path.clone(),
-                    content,
-                });
-            }
+            let source_path = source_path_opt.as_deref().unwrap_or(target_path);
+            let full_source = folder.join(source_path);
+            let content = std::fs::read(&full_source).map_err(|e| {
+                std::io::Error::new(
+                    e.kind(),
+                    format!(
+                        "failed to read mapped source '{}' (→ target '{}'): {}",
+                        source_path, target_path, e
+                    ),
+                )
+            })?;
+            entries.push(FileEntry {
+                relative_path: target_path.clone(),
+                content,
+            });
         }
     }
 
