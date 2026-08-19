@@ -22,7 +22,7 @@ use crate::sign::FileEntry;
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct FileMapping {
-    map: BTreeMap<String, String>,
+    map: BTreeMap<String, Option<String>>,
 }
 
 impl FileMapping {
@@ -32,13 +32,13 @@ impl FileMapping {
         }
     }
 
-    pub fn insert<T, S>(&mut self, target_path: T, source_path: S)
+    pub fn insert<T, S>(&mut self, target_path: T, source_path: Option<S>)
     where
         T: ToString,
         S: ToString,
     {
         self.map
-            .insert(target_path.to_string(), source_path.to_string());
+            .insert(target_path.to_string(), source_path.map(|s| s.to_string()));
     }
 
     pub fn len(&self) -> usize {
@@ -53,7 +53,7 @@ impl FileMapping {
 impl From<(&str, &str)> for FileMapping {
     fn from((target, source): (&str, &str)) -> Self {
         let mut m = Self::new();
-        m.insert(target, source);
+        m.insert(target, Some(source));
         m
     }
 }
@@ -62,7 +62,7 @@ impl<const N: usize> From<[(&str, &str); N]> for FileMapping {
     fn from(pairs: [(&str, &str); N]) -> Self {
         let mut m = Self::new();
         for (target, source) in pairs {
-            m.insert(target, source);
+            m.insert(target, Some(source));
         }
         m
     }
@@ -72,7 +72,7 @@ impl From<Vec<(&str, &str)>> for FileMapping {
     fn from(pairs: Vec<(&str, &str)>) -> Self {
         let mut m = Self::new();
         for (target, source) in pairs {
-            m.insert(target, source);
+            m.insert(target, Some(source));
         }
         m
     }
@@ -80,6 +80,34 @@ impl From<Vec<(&str, &str)>> for FileMapping {
 
 impl From<Vec<(String, String)>> for FileMapping {
     fn from(pairs: Vec<(String, String)>) -> Self {
+        let mut m = Self::new();
+        for (target, source) in pairs {
+            m.insert(target, Some(source));
+        }
+        m
+    }
+}
+
+impl From<(&str, Option<&str>)> for FileMapping {
+    fn from((target, source): (&str, Option<&str>)) -> Self {
+        let mut m = Self::new();
+        m.insert(target, source);
+        m
+    }
+}
+
+impl<const N: usize> From<[(&str, Option<&str>); N]> for FileMapping {
+    fn from(pairs: [(&str, Option<&str>); N]) -> Self {
+        let mut m = Self::new();
+        for (target, source) in pairs {
+            m.insert(target, source);
+        }
+        m
+    }
+}
+
+impl From<Vec<(String, Option<String>)>> for FileMapping {
+    fn from(pairs: Vec<(String, Option<String>)>) -> Self {
         let mut m = Self::new();
         for (target, source) in pairs {
             m.insert(target, source);
@@ -92,7 +120,7 @@ impl FromIterator<(String, String)> for FileMapping {
     fn from_iter<I: IntoIterator<Item = (String, String)>>(iter: I) -> Self {
         let mut m = Self::new();
         for (target, source) in iter {
-            m.insert(target, source);
+            m.insert(target, Some(source));
         }
         m
     }
@@ -102,15 +130,15 @@ impl<'a> FromIterator<(&'a str, &'a str)> for FileMapping {
     fn from_iter<I: IntoIterator<Item = (&'a str, &'a str)>>(iter: I) -> Self {
         let mut m = Self::new();
         for (target, source) in iter {
-            m.insert(target, source);
+            m.insert(target, Some(source));
         }
         m
     }
 }
 
 impl IntoIterator for FileMapping {
-    type Item = (String, String);
-    type IntoIter = std::collections::btree_map::IntoIter<String, String>;
+    type Item = (String, Option<String>);
+    type IntoIter = std::collections::btree_map::IntoIter<String, Option<String>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.map.into_iter()
@@ -118,29 +146,29 @@ impl IntoIterator for FileMapping {
 }
 
 impl<'a> IntoIterator for &'a FileMapping {
-    type Item = (&'a str, &'a str);
+    type Item = (&'a str, Option<&'a str>);
     type IntoIter = std::iter::Map<
-        std::collections::btree_map::Iter<'a, String, String>,
-        fn((&'a String, &'a String)) -> (&'a str, &'a str),
+        std::collections::btree_map::Iter<'a, String, Option<String>>,
+        fn((&'a String, &'a Option<String>)) -> (&'a str, Option<&'a str>),
     >;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.map.iter().map(|(k, v)| (k.as_str(), v.as_str()))
+        self.map.iter().map(|(k, v)| (k.as_str(), v.as_deref()))
     }
 }
 
-impl From<FileMapping> for Vec<(String, String)> {
+impl From<FileMapping> for Vec<(String, Option<String>)> {
     fn from(mapping: FileMapping) -> Self {
         mapping.map.into_iter().collect()
     }
 }
 
-impl<'a> From<&'a FileMapping> for Vec<(&'a str, &'a str)> {
+impl<'a> From<&'a FileMapping> for Vec<(&'a str, Option<&'a str>)> {
     fn from(mapping: &'a FileMapping) -> Self {
         mapping
             .map
             .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .map(|(k, v)| (k.as_str(), v.as_deref()))
             .collect()
     }
 }
@@ -156,7 +184,7 @@ impl<'a> From<&'a FileMapping> for Vec<(&'a str, &'a str)> {
 /// ```ignore
 /// let entries = machikado_rs::load_folder_files(dir, &[], &["machikado", "mazoku"], None)?;
 ///
-/// let mapping = FileMapping::from(("bin/zygiskd64", "bin/arm64-v8a/zygiskd"));
+/// let mapping = FileMapping::from(("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd")));
 /// let entries = machikado_rs::load_folder_files(dir, &[], &["machikado", "mazoku"], Some(&mapping))?;
 /// ```
 pub fn load_folder_files(
@@ -168,7 +196,8 @@ pub fn load_folder_files(
     let mut entries = Vec::new();
 
     if let Some(m) = mapping {
-        for (target_path, source_path) in &m.map {
+        for (target_path, source_path_opt) in &m.map {
+            let source_path = source_path_opt.as_deref().unwrap_or(target_path);
             let full_source = folder.join(source_path);
             let content = std::fs::read(&full_source).map_err(|e| {
                 std::io::Error::new(
@@ -201,10 +230,12 @@ pub fn load_folder_files(
             .to_string_lossy()
             .replace('\\', "/");
 
-        if let Some(m) = mapping
-            && (m.map.values().any(|s| s == &relative_path) || m.map.contains_key(&relative_path))
-        {
-            continue;
+        if let Some(m) = mapping {
+            let is_mapped_source = m.map.values().flatten().any(|s| s == &relative_path);
+            let is_mapped_target = m.map.contains_key(&relative_path);
+            if is_mapped_source || is_mapped_target {
+                continue;
+            }
         }
 
         if ignore_prefixes.iter().any(|p| relative_path.starts_with(p)) {
@@ -223,6 +254,41 @@ pub fn load_folder_files(
 
     entries.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
 
+    Ok(entries)
+}
+
+/// Load and sort all files in file mapping.
+///
+/// # Example
+///
+/// ```ignore
+/// let mapping = FileMapping::from(
+///     ("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd")),
+///     ("module.prop", None::<&str>),
+/// );
+/// let entries = machikado_rs::load_from_mapping(dir, &mapping)?;
+/// ```
+pub fn load_from_mapping(folder: &Path, mapping: &FileMapping) -> std::io::Result<Vec<FileEntry>> {
+    let mut entries = Vec::new();
+
+    for (target_path, source_path_opt) in &mapping.map {
+        let source_path = source_path_opt.as_deref().unwrap_or(target_path);
+        let full_source = folder.join(source_path);
+        let content = std::fs::read(&full_source).map_err(|e| {
+            std::io::Error::new(
+                e.kind(),
+                format!(
+                    "failed to read mapped source '{}' (-> target '{}'): {}",
+                    source_path, target_path, e
+                ),
+            )
+        })?;
+        entries.push(FileEntry {
+            relative_path: target_path.clone(),
+            content,
+        });
+    }
+    entries.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
     Ok(entries)
 }
 
@@ -317,10 +383,42 @@ mod tests {
         write_file(&dir, "post-fs-data.sh", b"post");
 
         let mut mapping = FileMapping::new();
-        mapping.insert("bin/zygiskd64", "bin/arm64-v8a/zygiskd");
-        mapping.insert("bin/zygiskd32", "bin/armeabi-v7a/zygiskd");
+        mapping.insert("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd"));
+        mapping.insert("bin/zygiskd32", Some("bin/armeabi-v7a/zygiskd"));
 
         let entries = load_folder_files(&dir, &[], &[], Some(&mapping)).unwrap();
+        let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
+        let contents: Vec<&[u8]> = entries.iter().map(|e| e.content.as_slice()).collect();
+
+        assert_eq!(
+            paths,
+            vec![
+                "bin/zygiskd32",
+                "bin/zygiskd64",
+                "module.prop",
+                "post-fs-data.sh"
+            ]
+        );
+        assert_eq!(contents, vec![b"d32" as &[u8], b"d64", b"prop", b"post"]);
+    }
+
+    #[test]
+    fn test_load_from_mapping() {
+        let dir = temp_dir();
+        let _guard = Cleanup(Some(dir.clone()));
+
+        write_file(&dir, "bin/arm64-v8a/zygiskd", b"d64");
+        write_file(&dir, "bin/armeabi-v7a/zygiskd", b"d32");
+        write_file(&dir, "module.prop", b"prop");
+        write_file(&dir, "post-fs-data.sh", b"post");
+
+        let mut mapping = FileMapping::new();
+        mapping.insert("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd"));
+        mapping.insert("bin/zygiskd32", Some("bin/armeabi-v7a/zygiskd"));
+        mapping.insert("module.prop", None::<&str>);
+        mapping.insert("post-fs-data.sh", None::<&str>);
+
+        let entries = load_from_mapping(&dir, &mapping).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
         let contents: Vec<&[u8]> = entries.iter().map(|e| e.content.as_slice()).collect();
 
@@ -345,7 +443,7 @@ mod tests {
         write_file(&dir, "module.prop", b"prop");
 
         let mut mapping = FileMapping::new();
-        mapping.insert("bin/zygiskd64", "bin/arm64-v8a/zygiskd");
+        mapping.insert("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd"));
 
         let entries = load_folder_files(&dir, &[], &[], Some(&mapping)).unwrap();
         let paths: Vec<&str> = entries.iter().map(|e| e.relative_path.as_str()).collect();
@@ -381,41 +479,41 @@ mod tests {
 
     #[test]
     fn test_mapping_from_empty_array() {
-        let m = FileMapping::from([]);
+        let m = FileMapping::new();
         assert!(m.is_empty());
     }
 
     #[test]
     fn test_mapping_into_vec() {
         let mut m = FileMapping::new();
-        m.insert("a", "src/a");
-        m.insert("b", "src/b");
+        m.insert("a", Some("src/a"));
+        m.insert("b", Some("src/b"));
 
-        let vec: Vec<(String, String)> = m.clone().into();
+        let vec: Vec<(String, Option<String>)> = m.clone().into();
         assert_eq!(
             vec,
             vec![
-                ("a".to_string(), "src/a".to_string()),
-                ("b".to_string(), "src/b".to_string()),
+                ("a".to_string(), Some("src/a".to_string())),
+                ("b".to_string(), Some("src/b".to_string())),
             ]
         );
 
-        let vec_ref: Vec<(&str, &str)> = (&m).into();
-        assert_eq!(vec_ref, vec![("a", "src/a"), ("b", "src/b")]);
+        let vec_ref: Vec<(&str, Option<&str>)> = (&m).into();
+        assert_eq!(vec_ref, vec![("a", Some("src/a")), ("b", Some("src/b"))]);
     }
 
     #[test]
     fn test_mapping_into_iter() {
         let mut m = FileMapping::new();
-        m.insert("a", "src/a");
-        m.insert("b", "src/b");
+        m.insert("a", Some("src/a"));
+        m.insert("b", Some("src/b"));
 
-        let collected: Vec<(String, String)> = m.into_iter().collect();
+        let collected: Vec<(String, Option<String>)> = m.into_iter().collect();
         assert_eq!(
             collected,
             vec![
-                ("a".to_string(), "src/a".to_string()),
-                ("b".to_string(), "src/b".to_string()),
+                ("a".to_string(), Some("src/a".to_string())),
+                ("b".to_string(), Some("src/b".to_string())),
             ]
         );
     }
@@ -423,10 +521,10 @@ mod tests {
     #[test]
     fn test_mapping_ref_iter() {
         let mut m = FileMapping::new();
-        m.insert("a", "src/a");
+        m.insert("a", Some("src/a"));
 
-        let collected: Vec<(&str, &str)> = (&m).into_iter().collect();
-        assert_eq!(collected, vec![("a", "src/a")]);
+        let collected: Vec<(&str, Option<&str>)> = (&m).into_iter().collect();
+        assert_eq!(collected, vec![("a", Some("src/a"))]);
     }
 
     #[test]

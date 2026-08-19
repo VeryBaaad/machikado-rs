@@ -76,37 +76,84 @@ assert!(ok);
 
 Map source paths to signed paths — for when `customize.sh` moves files at install time.
 
+#### Load from all files
+
 ```rust
 use machikado_rs::FileMapping;
 
 // Single pair
-let mapping = FileMapping::from(("bin/zygiskd64", "bin/arm64-v8a/zygiskd"));
+let mapping = FileMapping::from(("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd")));
+
+// Array of pairs
+let mapping = FileMapping::from([
+    ("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd")),
+    ("bin/zygiskd32", Some("bin/armeabi-v7a/zygiskd")),
+]);
+
+// From Vec<(&str, &str)> or Vec<(String, String)>
+let pairs: Vec<(&str, Option<&str>)> = vec![("a", Some("src/a"))];
+let mapping = FileMapping::from(pairs);
+
+// From iterator
+let mapping: FileMapping = [("a", Some("src/a")), ("b", Some("src/b"))]
+    .into_iter()
+    .collect();
+
+// Iteration
+for (target, source_opt) in &mapping {
+    if let Some(source) = source_opt {
+        println!("{target}")
+    } else {
+        println!("{target} -> {source}");
+    }
+}
+
+// Convert back to Vec
+let vec: Vec<(String, Option<String>)> = mapping.into();
+let vec_ref: Vec<(&str, Option<&str>)> = (&mapping).into();
+
+let entries = load_folder_files(&dir, &[], &[], Some(&mapping))?;
+```
+
+#### Load from file mapping
+
+```rust
+use machikado_rs::FileMapping;
+
+// Single pair
+let mapping = FileMapping::from(("bin/zygiskd64", Some("bin/arm64-v8a/zygiskd")));
 
 // Array of pairs
 let mapping = FileMapping::from([
     ("bin/zygiskd64", "bin/arm64-v8a/zygiskd"),
     ("bin/zygiskd32", "bin/armeabi-v7a/zygiskd"),
+    ("module.prop", None::<&str>),
+    ("action.sh", None::<&str>),
 ]);
 
 // From Vec<(&str, &str)> or Vec<(String, String)>
-let pairs: Vec<(&str, &str)> = vec![("a", "src/a")];
+let pairs: Vec<(&str, Option<&str>)> = vec![("a", Some("src/a"))];
 let mapping = FileMapping::from(pairs);
 
 // From iterator
-let mapping: FileMapping = [("a", "src/a"), ("b", "src/b")]
+let mapping: FileMapping = [("a", Some("src/a")), ("b", Some("src/b"))]
     .into_iter()
     .collect();
 
 // Iteration
-for (target, source) in &mapping {
-    println!("{target} -> {source}");
+for (target, source_opt) in &mapping {
+    if let Some(source) = source_opt {
+        println!("{target}")
+    } else {
+        println!("{target} -> {source}");
+    }
 }
 
 // Convert back to Vec
-let vec: Vec<(String, String)> = mapping.into();
-let vec_ref: Vec<(&str, &str)> = (&mapping).into();
+let vec: Vec<(String, Option<String>)> = mapping.into();
+let vec_ref: Vec<(&str, Option<&str>)> = (&mapping).into();
 
-let entries = load_folder_files(&dir, &[], &[], Some(&mapping))?;
+let entries = load_from_mapping(&dir, &mapping)?;
 ```
 
 ## API
@@ -119,6 +166,7 @@ let entries = load_folder_files(&dir, &[], &[], Some(&mapping))?;
 | `verify(&[u8], &[u8], &[FileEntry], &str, &[u8; 32])` | `(bool, Option<SignError>)` |
 | `verify_machikado(&[u8], &[FileEntry], &[u8; 32])` | `(bool, Option<SignError>)` |
 | `load_folder_files(&Path, &[&str], &[&str], Option<&FileMapping>)` | `io::Result<Vec<FileEntry>>` |
+| `load_from_mapping(&Path, &FileMapping)` | `io::Result<Vec<FileEntry>>` |
 
 `SignedBlob` is a 96-byte newtype with `.as_bytes()`, `.to_vec()`, `.signature()`, `.public_key()`.
 
